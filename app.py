@@ -16,7 +16,7 @@ DEVICE_MAP = {
     "示波器": []
 }
 
-# --- 3. 极致视觉定制（自动色彩适配 + 强力抹除标志） ---
+# --- 3. 视觉定制：彻底抹除标志 + 自动配色 ---
 st.set_page_config(page_title="设备领用登记表", layout="centered")
 
 def get_base64_image(file_path):
@@ -27,60 +27,59 @@ def get_base64_image(file_path):
     except:
         return ""
 
-# 请确保文件名准确
 img_base64 = get_base64_image("IMG_4614.jpeg")
 
-# 终极 CSS：自动配色逻辑 + 物理隐藏所有图标
+# 终极 CSS：强制物理遮屏
+# 重点针对：.stAppDeployButton (红船) 和 [data-testid="stStatusWidget"] (绿圈)
 style = f"""
     <style>
-    /* --- 1. 物理级抹除所有官方标志（纸船、绿点、菜单、页脚） --- */
-    header, footer, #MainMenu, [data-testid="stHeader"] {{
+    /* 1. 彻底抹除顶部和右下角所有 Streamlit 注入的元素 */
+    header, [data-testid="stHeader"], footer {{
         display: none !important;
-        visibility: hidden !important;
+        height: 0px !important;
     }}
     
-    /* 针对右下角所有浮动图标的深度拦截 */
-    [data-testid="stStatusWidget"], 
+    /* 针对你截图中的红色皇冠/纸船标志的深度清理 */
+    .stAppDeployButton, 
     [data-testid="manage-app-button"], 
-    .stDeployButton, 
-    .stAppDeployButton,
     [data-testid="stAppDeployButton"],
-    div[class*="st-emotion-cache-1wbqy5l"], 
-    div[class*="st-emotion-cache-zq59as"] {{
+    div[class*="st-emotion-cache-zq59as"],
+    div[class*="st-emotion-cache-1wbqy5l"],
+    button[title="View menu"] {{
         display: none !important;
         visibility: hidden !important;
-        opacity: 0 !important;
-        pointer-events: none !important;
+        width: 0px !important;
+        height: 0px !important;
     }}
 
-    /* --- 2. 自动配色逻辑：深色模式文字变白，浅色模式文字变黑 --- */
-    /* 默认（浅色模式）样式 */
+    /* 针对左边那个绿色状态圆点的深度清理 */
+    [data-testid="stStatusWidget"], 
+    #stStatusWidget,
+    div[data-testid="stStatusWidget"] {{
+        display: none !important;
+        visibility: hidden !important;
+    }}
+
+    /* 2. 自动配色逻辑：兼容深色/浅色模式 */
     :root {{
         --text-color: #000000;
-        --label-color: #333333;
         --card-bg: #FFFFFF;
+        --sub-text: #666666;
     }}
 
-    /* 自动感应深色模式 */
     @media (prefers-color-scheme: dark) {{
         :root {{
             --text-color: #FFFFFF;
-            --label-color: #EEEEEE;
-            --card-bg: #1A1C23;
-        }}
-        /* 深色模式下的输入框调整 */
-        input, .stSelectbox div {{
-            background-color: #2D2F39 !important;
-            color: white !important;
+            --card-bg: #1E1E1E;
+            --sub-text: #AAAAAA;
         }}
     }}
 
-    /* 应用配色 */
-    h1, h2, p, label, span, div {{
-        color: var(--text-color) !important;
+    .stApp {{
+        color: var(--text-color);
     }}
 
-    /* --- 3. 水印设置 --- */
+    /* 水印背景 */
     .stApp::before {{
         content: "";
         position: fixed;
@@ -88,65 +87,65 @@ style = f"""
         background-image: url("data:image/jpeg;base64,{img_base64}");
         background-repeat: no-repeat;
         background-position: center;
-        background-size: 50%; 
+        background-size: 55%; 
         opacity: 0.03; 
         z-index: -1;
     }}
 
-    /* --- 4. 表单卡片定制（简约时尚大气） --- */
+    /* 表单卡片定制 */
     div[data-testid="stForm"] {{
-        border: 1px solid rgba(128,128,128,0.1) !important;
         border-radius: 24px !important;
         background-color: var(--card-bg) !important;
         padding: 30px !important;
-        box-shadow: 0 15px 50px rgba(0,0,0,0.1) !important;
+        box-shadow: 0 15px 45px rgba(0,0,0,0.15) !important;
+        border: 1px solid rgba(128,128,128,0.1) !important;
     }}
 
-    /* --- 5. 确认提交按钮 (绿色 + 悬浮效果) --- */
+    /* 文字对比度强制提升 */
+    h1, h2, label, p, span, div {{
+        color: var(--text-color) !important;
+        font-weight: 600 !important;
+    }}
+
+    /* 3. 提交按钮美化 (UL 红色风格) */
     .stButton>button {{
         width: 100%;
-        border-radius: 14px !important;
+        border-radius: 12px !important;
         height: 3.8em !important;
-        background-color: #28A745 !important;
+        background-color: #B01F24 !important; /* UL 红色 */
         color: #FFFFFF !important;
         font-weight: bold !important;
         font-size: 18px !important;
         border: none !important;
         margin-top: 20px !important;
-        box-shadow: 0 5px 15px rgba(40,167,69,0.3) !important;
-        transition: 0.3s ease;
-    }}
-    .stButton>button:hover {{
-        background-color: #218838 !important;
-        transform: translateY(-2px);
-        box-shadow: 0 8px 20px rgba(40,167,69,0.4) !important;
+        box-shadow: 0 5px 15px rgba(176,31,36,0.3) !important;
     }}
     </style>
 """
 st.markdown(style, unsafe_allow_html=True)
 
-# --- 4. 页面内容布局 ---
+# --- 4. 页面内容 ---
 
 # 顶部 Logo
 if img_base64:
     st.markdown(f'<div style="text-align: center;"><img src="data:image/jpeg;base64,{img_base64}" width="200"></div>', unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; margin-top: 10px; border:none;'>设备领用登记表</h1>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; margin-top: 10px;'>设备领用登记表</h1>", unsafe_allow_html=True)
 st.markdown("<p style='text-align: center; opacity: 0.7; font-size: 14px;'>UL Solutions Laboratory Asset Registry</p>", unsafe_allow_html=True)
 
 # --- 登记表单 ---
 with st.form("lab_form", clear_on_submit=True):
     staff_id = st.text_input("工号 (Staff ID)", placeholder="请输入您的工号")
     action_type = st.radio("操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
-    device_name = st.selectbox("设备名称", ["请选择设备类型"] + list(DEVICE_MAP.keys()))
+    device_name = st.selectbox("设备名称", ["请选择"] + list(DEVICE_MAP.keys()))
     device_id = st.text_input("设备编号", placeholder="请输入唯一设备号")
     
     st.markdown("<br>", unsafe_allow_html=True)
-    submit_btn = st.form_submit_button("确认提交登记")
+    submit_btn = st.form_submit_button("确认提交登记 (SUBMIT)")
 
 # --- 提交逻辑 ---
 if submit_btn:
-    if not staff_id or device_name == "请选择设备类型" or not device_id:
+    if not staff_id or device_name == "请选择" or not device_id:
         st.error("❌ 请完整填写所有信息！")
     else:
         try:
@@ -157,7 +156,7 @@ if submit_btn:
                 "device_id": device_id
             }
             supabase.table("lab_records").insert(entry).execute()
-            st.success("✅ 登记成功！已实时备份。")
+            st.success("✅ 登记成功！已实时同步。")
             st.balloons()
         except Exception as e:
             st.error(f"提交出错: {e}")
