@@ -16,8 +16,8 @@ DEVICE_MAP = {
     "Datalogger": [], "电压探头": [], "高压探棒": []
 }
 
-# --- 3. 极致视觉定制（自动色彩适配 + 彻底抹除标志） ---
-st.set_page_config(page_title="设备领用登记表", layout="centered")
+# --- 3. 极致全面屏定制 ---
+st.set_page_config(page_title="UL设备登记", layout="centered")
 
 def get_base64_image(file_path):
     try:
@@ -29,55 +29,60 @@ def get_base64_image(file_path):
 
 img_base64 = get_base64_image("IMG_4614.jpeg")
 
-# 终极 CSS：智能感应深浅模式 + 物理清除官方标志
+# 全面屏 Meta 标签：让手机浏览器将其识别为独立 App
+pwa_meta = """
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+"""
+st.markdown(pwa_meta, unsafe_allow_html=True)
+
+# 核心 CSS：锁定配色 + 消除边框 + 全屏适配
 style = f"""
     <style>
-    /* --- A. 彻底抹除 Streamlit 标志 --- */
+    /* --- A. 彻底消除官方标志 --- */
     header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{
         display: none !important;
-        height: 0 !important;
     }}
-    .stAppDeployButton, [data-testid="stAppDeployButton"], [data-testid="manage-app-button"],
-    #stStatusWidget, [data-testid="stStatusWidget"], .viewerBadge_container__1QSob,
-    div[class*="viewerBadge"] {{
+    [data-testid="stStatusWidget"], [data-testid="manage-app-button"], .viewerBadge_container__1QSob {{
         display: none !important;
         position: fixed !important;
         left: -9999px !important;
     }}
 
-    /* --- B. 自动配色逻辑：感应深色/浅色模式 --- */
-    /* 默认：浅色模式（白底黑字） */
+    /* --- B. 自动配色逻辑：消除深色模式白边 --- */
     :root {{
         --bg-color: #FFFFFF;
         --text-color: #000000;
         --card-bg: #FFFFFF;
         --input-bg: #F8F9FA;
-        --border-color: #F0F0F0;
     }}
 
-    /* 深色模式：系统设为黑色时自动触发 */
     @media (prefers-color-scheme: dark) {{
         :root {{
             --bg-color: #0E1117;
             --text-color: #FFFFFF;
             --card-bg: #1A1C23;
             --input-bg: #262730;
-            --border-color: #31333F;
         }}
     }}
 
-    .stApp {{
+    /* 关键：将背景色应用到最外层 HTML，消除白边 */
+    html, body, [data-testid="stAppViewContainer"], .stApp {{
         background-color: var(--bg-color) !important;
         color: var(--text-color) !important;
+        margin: 0 !important;
+        padding: 0 !important;
     }}
 
-    /* 强制所有文字颜色跟随系统模式 */
-    h1, h2, h3, p, label, span, div, .stMarkdown {{
+    /* 强制文字颜色 */
+    h1, h2, h3, p, label, span, div {{
         color: var(--text-color) !important;
         font-weight: 600 !important;
     }}
 
-    /* --- C. 水印背景 --- */
+    /* --- C. 全屏水印 --- */
     .stApp::before {{
         content: ""; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
         background-image: url("data:image/jpeg;base64,{img_base64}");
@@ -85,87 +90,83 @@ style = f"""
         background-size: 55%; opacity: 0.03; z-index: -1;
     }}
 
-    /* --- D. 表单卡片自适应 --- */
+    /* --- D. 表单自适应（全面屏感） --- */
     div[data-testid="stForm"] {{
-        border: 1px solid var(--border-color) !important;
-        border-radius: 24px !important;
+        border: none !important;
+        border-radius: 0px !important; /* 手机端取消圆角实现全屏感 */
         background-color: var(--card-bg) !important;
-        padding: 30px !important;
-        box-shadow: 0 15px 50px rgba(0,0,0,0.1) !important;
+        padding: 20px !important;
+        box-shadow: none !important;
     }}
     
+    /* 电脑端显示为卡片，手机端铺满 */
     @media (min-width: 768px) {{
-        [data-testid="stForm"] {{ max-width: 550px !important; margin: 0 auto !important; }}
+        div[data-testid="stForm"] {{
+            max-width: 500px !important;
+            margin: 20px auto !important;
+            border-radius: 24px !important;
+            box-shadow: 0 15px 50px rgba(0,0,0,0.1) !important;
+        }}
     }}
 
-    /* --- E. 按钮定制 (成功绿) --- */
+    /* 隐藏滚动条 */
+    ::-webkit-scrollbar {{ display: none; }}
+
+    /* 确认按钮 (亮绿色) */
     .stButton>button {{
         width: 100%; border-radius: 12px !important; height: 3.8em !important;
         background-color: #28A745 !important; color: #FFFFFF !important;
-        font-weight: bold !important; font-size: 18px !important;
-        border: none !important; margin-top: 15px !important;
-        box-shadow: 0 8px 20px rgba(40,167,69,0.2) !important;
-    }}
-
-    /* 修正输入框在不同模式下的背景 */
-    input, .stSelectbox div {{
-        background-color: var(--input-bg) !important;
-        color: var(--text-color) !important;
-        border-radius: 10px !important;
+        font-weight: bold !important; font-size: 18px !important; border: none !important;
     }}
     </style>
 """
 st.markdown(style, unsafe_allow_html=True)
 
 # --- 4. 页面内容 ---
+st.markdown("<div style='text-align: center; padding-top: 20px;'>", unsafe_allow_html=True)
 if img_base64:
-    st.markdown(f'<div style="text-align: center;"><img src="data:image/jpeg;base64,{img_base64}" width="200"></div>', unsafe_allow_html=True)
+    st.image("IMG_4614.jpeg", width=180)
+st.markdown("</div>", unsafe_allow_html=True)
 
-st.markdown("<h1 style='text-align: center; margin-top: 5px; margin-bottom: 0px;'>设备领用登记表</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; opacity: 0.6; font-size: 13px;'>UL Solutions Laboratory Asset Registry</p>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; margin-bottom: 0px;'>设备领用登记表</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; opacity: 0.6; font-size: 12px;'>UL Solutions Asset Registry</p>", unsafe_allow_html=True)
 
 with st.form("lab_form", clear_on_submit=True):
-    staff_id = st.text_input("工号 (Staff ID)", placeholder="请输入您的工号")
+    staff_id = st.text_input("工号 (Staff ID)", placeholder="请输入工号")
     action_type = st.radio("操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
-    device_name = st.selectbox("设备名称", ["请选择设备类型"] + list(DEVICE_MAP.keys()))
-    device_id = st.text_input("设备编号 (SN)", placeholder="请输入唯一编号")
+    device_name = st.selectbox("设备名称", ["请选择类型"] + list(DEVICE_MAP.keys()))
+    device_id = st.text_input("设备编号 (SN)", placeholder="手动输入编号")
     st.markdown("<br>", unsafe_allow_html=True)
     submit_btn = st.form_submit_button("确认提交登记 (SUBMIT)")
 
 if submit_btn:
-    if not staff_id or device_name == "请选择设备类型" or not device_id:
-        st.error("❌ 请完整填写所有信息！")
+    if not staff_id or device_name == "请选择类型" or not device_id:
+        st.warning("⚠️ 请填完所有项再提交")
     else:
         try:
             entry = {"staff_id": staff_id, "action_type": "领用" if "领用" in action_type else "归还", "device_name": device_name, "device_id": device_id}
             supabase.table("lab_records").insert(entry).execute()
-            st.success("✅ 登记成功！数据已实时备份。")
+            st.success("✅ 登记成功！")
             st.balloons()
-        except Exception as e:
-            st.error(f"提交出错: {e}")
+        except:
+            st.error("提交失败，请重试")
 
-# --- 5. 管理员后台 - 导出 Excel ---
-st.markdown("<br><br>", unsafe_allow_html=True)
-with st.expander("📊 查看记录 (管理人员专用)"):
+# --- 5. 后台管理 ---
+st.markdown("<br>", unsafe_allow_html=True)
+with st.expander("📊 历史记录"):
     try:
-        response = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
-        if response.data:
-            df = pd.DataFrame(response.data)
+        res = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
+        if res.data:
+            df = pd.DataFrame(res.data)
             df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert('Asia/Shanghai').dt.strftime('%Y-%m-%d %H:%M:%S')
             df_display = df[['staff_id', 'action_type', 'device_name', 'device_id', 'created_at']]
-            df_display.columns = ["工号", "类型", "设备名称", "编号", "登记时间"]
+            df_display.columns = ["工号", "类型", "设备", "编号", "时间"]
             st.dataframe(df_display, use_container_width=True)
             
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_display.to_excel(writer, index=False, sheet_name='登记记录')
+                df_display.to_excel(writer, index=False, sheet_name='Records')
             excel_data = output.getvalue()
-
-            st.download_button(
-                label="📥 导出为标准 Excel 文档 (.xlsx)",
-                data=excel_data,
-                file_name=f"UL_Records_{pd.Timestamp.now().strftime('%Y%m%d')}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-            )
+            st.download_button("📥 导出 Excel (.xlsx)", excel_data, f"UL_Records.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
     except:
-        st.write("暂无记录")
+        st.write("无数据")
