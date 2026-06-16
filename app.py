@@ -2,12 +2,12 @@ import streamlit as st
 from supabase import create_client, Client
 import pandas as pd
 
-# --- 数据库连接配置 (已根据你提供的信息填入) ---
+# --- 1. 数据库配置 ---
 URL = "https://xcrbvvlsbjsmxaepkdbl.supabase.co"
 KEY = "sb_publishable_QYXt0Fs5YKpCBXxCjdb4sg_9y7rkksj"
 supabase: Client = create_client(URL, KEY)
 
-# --- 实验室设备清单 (你可以随时在下面修改名称和编号) ---
+# --- 2. 设备清单 ---
 DEVICE_MAP = {
     "直流电源": [],
     "万用表": [],
@@ -15,68 +15,125 @@ DEVICE_MAP = {
     "示波器": []
 }
 
-# 页面设置
-st.set_page_config(page_title="实验室设备管理系统", layout="centered")
-st.title("🔬 设备领用与归还登记")
-st.markdown("人员扫码后，请如实填写以下信息进行登记")
+# --- 3. 深度视觉定制 (UL 品牌风格) ---
+st.set_page_config(page_title="UL 实验室管理系统", layout="centered")
 
-# --- 填写表单 ---
+# CSS 注入：打造简约时尚大气的 UI
+style = """
+    <style>
+    /* 隐藏多余组件 */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    
+    /* 全局背景：极简淡雅灰 */
+    .stApp {
+        background: #FDFDFD;
+    }
+    
+    /* 品牌 Logo 区域 */
+    .logo-container {
+        display: flex;
+        justify-content: center;
+        padding: 20px 0;
+    }
+
+    /* 表单卡片定制 */
+    div[data-testid="stForm"] {
+        border: none !important;
+        border-radius: 20px !important;
+        background-color: #FFFFFF !important;
+        padding: 40px !important;
+        box-shadow: 0 15px 35px rgba(0,0,0,0.05) !important;
+    }
+
+    /* 标题美化 */
+    .main-title {
+        text-align: center;
+        color: #333333;
+        font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
+        font-weight: 300;
+        letter-spacing: 1px;
+        margin-bottom: 30px;
+    }
+
+    /* UL 品牌红色按钮 */
+    .stButton>button {
+        width: 100%;
+        border-radius: 50px; /* 胶囊型按钮，更时尚 */
+        height: 3.5em;
+        background-color: #B01F24 !important; /* UL 红色 */
+        color: white !important;
+        border: none !important;
+        font-weight: bold;
+        transition: 0.3s;
+    }
+    .stButton>button:hover {
+        background-color: #8C181D !important; /* 悬停深红色 */
+        box-shadow: 0 5px 15px rgba(176,31,36,0.3);
+    }
+
+    /* 输入框圆角 */
+    .stTextInput>div>div>input, .stSelectbox>div>div>div {
+        border-radius: 10px !important;
+    }
+    </style>
+"""
+st.markdown(style, unsafe_allow_html=True)
+
+# --- 4. 页面内容 ---
+
+# 顶部 Logo 品牌区 (这里建议将图片放在 GitHub 仓库并使用链接，暂时先用文字占位)
+st.markdown('<div class="logo-container">', unsafe_allow_html=True)
+# 注意：你需要把刚才那张 Logo 上传到 GitHub 或图床，替换下面的 URL
+st.image("https://www.ul.com/themes/custom/ul_theme/logo.svg", width=220) 
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.markdown('<h1 class="main-title">实验室设备登记系统</h1>', unsafe_allow_html=True)
+
+# --- 登记表单 ---
 with st.form("lab_form", clear_on_submit=True):
-    staff_id = st.text_input("工号 (Staff ID)", placeholder="请输入您的工号")
+    staff_id = st.text_input("👤 工号 (Staff ID)", placeholder="Enter your ID")
     
-    action_type = st.radio("操作类型", ["领用", "归还"], horizontal=True)
+    action_type = st.radio("📝 操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
     
-    # 级联选择：选了名称才会出现对应的编号
-    device_name = st.selectbox("设备名称", ["请选择"] + list(DEVICE_MAP.keys()))
+    device_name = st.selectbox("📦 设备名称", ["请选择设备"] + list(DEVICE_MAP.keys()))
     
-    device_ids = DEVICE_MAP.get(device_name, [])
-    device_id = st.text_input("设备编号(请手动输入)")
+    device_id = st.text_input("🔢 设备编号", placeholder="Input Device Number")
     
-    submit_btn = st.form_submit_button("确认提交登记", use_container_width=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+    submit_btn = st.form_submit_button("确认提交 (SUBMIT)")
 
 # --- 提交逻辑 ---
 if submit_btn:
-    if not staff_id or device_name == "请选择":
-        st.error("❌ 请完整填写工号并选择设备！")
+    if not staff_id or device_name == "请选择设备" or not device_id:
+        st.warning("请完整填写所有信息 (Please complete all fields)")
     else:
         try:
-            # 将数据插入到刚才你在 Supabase 建好的 lab_records 表中
             entry = {
                 "staff_id": staff_id,
-                "action_type": action_type,
+                "action_type": action_type.split(" ")[0], # 只存中文部分
                 "device_name": device_name,
                 "device_id": device_id
             }
             supabase.table("lab_records").insert(entry).execute()
-            st.success(f"✅ 登记成功！{device_name} ({device_id}) 已记录。")
+            st.success(f"✅ 提交成功 (Success)! {device_name} - {device_id}")
             st.balloons()
         except Exception as e:
-            st.error(f"提交出错，请联系管理员: {e}")
+            st.error(f"Error: {e}")
 
-# --- 管理员后台 (导出 Excel) ---
-st.markdown("---")
-with st.expander("📊 管理员后台 (查看记录与导出电子档)"):
+# --- 管理员后台 (极简设计) ---
+st.markdown("<br><br>", unsafe_allow_html=True)
+with st.expander("📊 历史记录查询 (History Logs)"):
     try:
-        # 从数据库抓取所有数据，按时间倒序排列
         response = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
         if response.data:
             df = pd.DataFrame(response.data)
-            # 整理表格列名
-            df = df[['id', 'staff_id', 'action_type', 'device_name', 'device_id', 'created_at']]
-            df.columns = ["序号", "工号", "操作类型", "设备名称", "设备编号", "登记时间"]
+            df = df[['staff_id', 'action_type', 'device_name', 'device_id', 'created_at']]
+            df.columns = ["工号", "操作", "设备", "编号", "时间"]
+            st.dataframe(df, use_container_width=True)
             
-            st.write("最近登记记录：")
-            st.dataframe(df)
-            
-            # 导出 Excel (CSV格式，带BOM头防止Excel中文乱码)
             csv = df.to_csv(index=False).encode('utf_8_sig')
-            st.download_button(
-                label="📥 导出完整电子档 (Excel)",
-                data=csv,
-                file_name="实验室设备领用记录表.csv",
-                mime="text/csv"
-            )
-        else:
-            st.info("目前还没有登记记录。")
+            st.download_button("📥 导出 Excel", csv, "UL_Lab_Records.csv", "text/csv")
     except:
-        st.write("等待首次数据提交...")
+        st.write("Wait for data...")
