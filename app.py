@@ -30,7 +30,7 @@ with st.form("lab_form", clear_on_submit=True):
     device_name = st.selectbox("设备名称", ["请选择"] + list(DEVICE_MAP.keys()))
     
     device_ids = DEVICE_MAP.get(device_name, [])
-    devide_id = st.text_input("设备编号(请手动输入)")
+    device_id = st.text_input("设备编号(请手动输入)")
     
     submit_btn = st.form_submit_button("确认提交登记", use_container_width=True)
 
