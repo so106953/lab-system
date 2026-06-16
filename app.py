@@ -16,7 +16,7 @@ DEVICE_MAP = {
     "示波器": []
 }
 
-# --- 3. 极致视觉定制（强效去标志 + 自动配色 + 时间美化） ---
+# --- 3. 极致视觉定制 ---
 st.set_page_config(page_title="设备领用登记表", layout="centered")
 
 def get_base64_image(file_path):
@@ -29,31 +29,44 @@ def get_base64_image(file_path):
 
 img_base64 = get_base64_image("IMG_4614.jpeg")
 
-# 终极 CSS：不仅隐藏，更要彻底抹除所有官方痕迹
 style = f"""
     <style>
-    /* --- A. 彻底抹除官方标志（纸船、绿点、菜单、所有装饰） --- */
+    /* --- A. 彻底抹除官方标志 --- */
     header, footer, [data-testid="stHeader"], [data-testid="stToolbar"] {{
         display: none !important;
         height: 0 !important;
     }}
-    
-    /* 强力锁定右下角所有可能的容器，将其彻底移除屏幕 */
+
     [data-testid="manage-app-button"],
     [data-testid="stStatusWidget"],
+    [data-testid="stAppDeployButton"],
     .stDeployButton,
-    .stAppDeployButton,
-    #stStatusWidget,
-    div[class*="st-emotion-cache-1wbqy5l"],
-    div[class*="st-emotion-cache-zq59as"],
-    div[class*="st-emotion-cache-1dp5vir"] {{
+    .stAppDeployButton {{
         display: none !important;
-        position: fixed !important;
-        left: -9999px !important;
         visibility: hidden !important;
     }}
 
-    /* --- B. 自动配色逻辑：确保任何模式下字都清晰 --- */
+    div[class*="StatusWidget"],
+    div[class*="deployButton"],
+    div[class*="toolbarActions"] {{
+        display: none !important;
+        visibility: hidden !important;
+        pointer-events: none !important;
+    }}
+
+    /* 终极覆盖：用背景色色块遮盖右下角区域 */
+    .stApp::after {{
+        content: "";
+        position: fixed;
+        bottom: 0;
+        right: 0;
+        width: 320px;
+        height: 80px;
+        background-color: var(--main-bg);
+        z-index: 999999;
+    }}
+
+    /* --- B. 自动配色逻辑 --- */
     :root {{
         --main-bg: #FFFFFF;
         --card-bg: #FFFFFF;
@@ -161,17 +174,10 @@ with st.expander("📊 查看记录 (管理人员专用)"):
         response = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
         if response.data:
             df = pd.DataFrame(response.data)
-            
-            # --- 核心改进：格式化登记时间为北京时间 年-月-日 时:分:秒 ---
             df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert('Asia/Shanghai').dt.strftime('%Y-%m-%d %H:%M:%S')
-            
-            # 整理显示列
             df_display = df[['staff_id', 'action_type', 'device_name', 'device_id', 'created_at']]
             df_display.columns = ["工号", "类型", "设备名称", "编号", "登记时间"]
-            
             st.dataframe(df_display, use_container_width=True)
-            
-            # 导出 Excel
             csv = df_display.to_csv(index=False).encode('utf_8_sig')
             st.download_button("📥 导出 Excel", csv, "UL_Records.csv", "text/csv")
     except Exception as e:
