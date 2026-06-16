@@ -16,7 +16,7 @@ DEVICE_MAP = {
     "示波器": []
 }
 
-# --- 3. 极致视觉定制 ---
+# --- 3. 页面配置 ---
 st.set_page_config(page_title="设备领用登记表", layout="centered")
 
 def get_base64_image(file_path):
@@ -29,44 +29,53 @@ def get_base64_image(file_path):
 
 img_base64 = get_base64_image("IMG_4614.jpeg")
 
+# ✅ 核心：用JS持续轮询删除右下角元素
+st.markdown("""
+<script>
+function removeStreamlitBadges() {
+    // 删除所有固定在右下角的元素
+    const allDivs = document.querySelectorAll('div, a, button, iframe');
+    allDivs.forEach(el => {
+        const style = window.getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        // 判断是否在右下角区域
+        if (
+            style.position === 'fixed' &&
+            parseFloat(style.bottom) >= 0 &&
+            parseFloat(style.right) >= 0 &&
+            rect.bottom >= window.innerHeight - 120 &&
+            rect.right >= window.innerWidth - 350
+        ) {
+            el.remove();
+        }
+    });
+
+    // 也按testid精确删除
+    const targets = [
+        '[data-testid="manage-app-button"]',
+        '[data-testid="stStatusWidget"]',
+        '[data-testid="stToolbar"]',
+        '.stDeployButton',
+        'iframe[title="streamlit_analytics"]'
+    ];
+    targets.forEach(selector => {
+        document.querySelectorAll(selector).forEach(el => el.remove());
+    });
+}
+
+// 页面加载后持续执行，防止Streamlit重新挂载
+removeStreamlitBadges();
+setInterval(removeStreamlitBadges, 500);
+</script>
+""", unsafe_allow_html=True)
+
 style = f"""
     <style>
-    /* --- A. 彻底抹除官方标志 --- */
     header, footer, [data-testid="stHeader"], [data-testid="stToolbar"] {{
         display: none !important;
         height: 0 !important;
     }}
 
-    [data-testid="manage-app-button"],
-    [data-testid="stStatusWidget"],
-    [data-testid="stAppDeployButton"],
-    .stDeployButton,
-    .stAppDeployButton {{
-        display: none !important;
-        visibility: hidden !important;
-    }}
-
-    div[class*="StatusWidget"],
-    div[class*="deployButton"],
-    div[class*="toolbarActions"] {{
-        display: none !important;
-        visibility: hidden !important;
-        pointer-events: none !important;
-    }}
-
-    /* 终极覆盖：用背景色色块遮盖右下角区域 */
-    .stApp::after {{
-        content: "";
-        position: fixed;
-        bottom: 0;
-        right: 0;
-        width: 320px;
-        height: 80px;
-        background-color: var(--main-bg);
-        z-index: 999999;
-    }}
-
-    /* --- B. 自动配色逻辑 --- */
     :root {{
         --main-bg: #FFFFFF;
         --card-bg: #FFFFFF;
@@ -93,7 +102,6 @@ style = f"""
         font-weight: 600 !important;
     }}
 
-    /* --- C. 水印背景 --- */
     .stApp::before {{
         content: "";
         position: fixed;
@@ -106,7 +114,6 @@ style = f"""
         z-index: -1;
     }}
 
-    /* --- D. 表单卡片定制 --- */
     div[data-testid="stForm"] {{
         border: 1px solid rgba(128,128,128,0.1) !important;
         border-radius: 24px !important;
@@ -115,7 +122,6 @@ style = f"""
         box-shadow: 0 20px 50px rgba(0,0,0,0.1) !important;
     }}
 
-    /* --- E. 按钮定制 (绿色确认) --- */
     .stButton>button {{
         width: 100%;
         border-radius: 12px !important;
@@ -132,7 +138,6 @@ style = f"""
 st.markdown(style, unsafe_allow_html=True)
 
 # --- 4. 页面内容布局 ---
-
 if img_base64:
     st.markdown(f'<div style="text-align: center;"><img src="data:image/jpeg;base64,{img_base64}" width="200"></div>', unsafe_allow_html=True)
 
