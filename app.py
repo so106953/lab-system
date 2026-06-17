@@ -13,10 +13,15 @@ URL = "https://xcrbvvlsbjsmxaepkdbl.supabase.co"
 KEY = "sb_publishable_QYXt0Fs5YKpCBXxCjdb4sg_9y7rkksj"
 supabase: Client = create_client(URL, KEY)
 
-# --- 2. 设备与组别配置 ---
-ALL_GROUPS = ["components", "PV", "tools", "HVAC", "Lingting", "PC组", "小家电", "洗衣机", "材料", "电缆"]
+# --- 2. 组别与设备清单配置 ---
+# 领用人所属组别清单
+ALL_GROUPS = ["components", "PV", "tools", "HVAC", "Lingting", "PC组", "小家电", "洗衣机", "材料", "电缆", "电池组", "hiteck组"]
+
+# 各组资产所属清单
 GROUP_CONFIG = {
-    "components": ["示波器", "万用表", "直流电源", "LCR表"],
+    "components": ["万用表", "示波器", "电流钳", "环境箱", "小烤箱", "游标卡尺", "直流源", "电子负载", "datalogger", "电压探头", "高压探头"],
+    "电池组": ["万用表", "内阻仪", "充放电柜", "示波器", "环境箱"],
+    "hiteck组": ["示波器", "万用表", "电子负载", "直流电源"],
     "PV": ["光伏测试仪", "万用表", "直流电源", "电子负载"],
     "tools": ["游标卡尺", "扭力计", "示波器", "万用表"],
     "HVAC": ["环境箱", "温度记录仪", "压力计", "流量计"],
@@ -86,7 +91,7 @@ def format_loan_duration(d):
     if total_mins < 60: return f"{total_mins}分钟"
     return f"{round(d, 2)}天"
 
-# --- 5. 核心逻辑：自动超时提醒 (新增人员组别显示) ---
+# --- 5. 核心逻辑：自动超时分级提醒 ---
 def monitor_loan_status(owning_group):
     try:
         res = supabase.table("lab_records").select("*").execute()
@@ -105,7 +110,6 @@ def monitor_loan_status(owning_group):
                 limit_days = float(row['loan_days']) if row['loan_days'] else 1.0
                 due_time = start_time + timedelta(days=limit_days)
                 
-                # 获取负责人信息：工号 + 组别
                 person_info = f"**{row['staff_id']}** ({row['staff_group']})"
                 
                 if now >= due_time:
@@ -116,14 +120,14 @@ def monitor_loan_status(owning_group):
                     yellow_list.append(f"🟡 **{row['device_name']}** ({row['device_id']}) | 负责人: {person_info} | 剩余: **{remain_str}**")
 
             if red_list:
-                st.error("🚨 **设备超时未还警示名单**")
+                st.error("🚨 **设备超时未还警示名单 (Urgent Overdue)**")
                 for msg in red_list: st.markdown(f"<div style='padding:8px; border-left:5px solid red; background:rgba(255,0,0,0.05); margin-bottom:5px; font-size:14px;'>{msg}</div>", unsafe_allow_html=True)
             if yellow_list:
-                st.warning("⏳ **即将超时提醒 (5分钟内)**")
+                st.warning("⏳ **即将超时提醒 (Due Soon)**")
                 for msg in yellow_list: st.markdown(f"<div style='padding:8px; border-left:5px solid #FFCC00; background:rgba(255,204,0,0.05); margin-bottom:5px; font-size:14px;'>{msg}</div>", unsafe_allow_html=True)
     except: pass
 
-# --- 6. 页面内容 ---
+# --- 6. 页面入口 ---
 query_params = st.query_params
 owning_group = query_params.get("group", "默认")
 monitor_loan_status(owning_group)
@@ -166,12 +170,12 @@ if submit_btn:
             }
             supabase.table("lab_records").insert(entry).execute()
             st.balloons()
-            st.success("✅ 登记成功！")
+            st.success("✅ 登记成功！数据已实时备份。")
             time.sleep(2)
             st.rerun()
         except Exception as e: st.error(f"失败: {e}")
 
-# --- 7. 管理员后台（带调色导出） ---
+# --- 7. 管理员后台 ---
 st.markdown("<br>", unsafe_allow_html=True)
 with st.expander("📊 查看记录 (带色彩 Excel 导出)"):
     try:
@@ -196,6 +200,5 @@ with st.expander("📊 查看记录 (带色彩 Excel 导出)"):
                 for r_idx, action in enumerate(df_display["类型"], start=2):
                     fill = yellow if action == "领用" else green
                     for cell in ws[r_idx]: cell.fill = fill
-
             st.download_button(f"📥 导出 {owning_group} Excel", output.getvalue(), f"UL_{owning_group}_Records.xlsx")
     except: st.write("暂无记录。")
