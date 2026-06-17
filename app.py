@@ -65,45 +65,72 @@ style = f"""
 """
 st.markdown(style, unsafe_allow_html=True)
 
-# --- 4. 核心逻辑：自动超时提醒 ---
-def check_overdue(owning_group):
+# --- 4. 核心逻辑：格式化超时时长函数 ---
+def format_overdue_time(td):
+    days = td.days
+    hours, remainder = divmod(td.seconds, 3600)
+    minutes, _ = divmod(remainder, 60)
+    parts = []
+    if days > 0: parts.append(f"{days}天")
+    if hours > 0: parts.append(f"{hours}小时")
+    if minutes > 0: parts.append(f"{minutes}分钟")
+    return "".join(parts) if parts else "不足1分钟"
+
+# --- 5. 自动超时提醒逻辑 ---
+def check_overdue_and_display(owning_group):
     try:
         res = supabase.table("lab_records").select("*").execute()
         if res.data:
             df = pd.DataFrame(res.data)
+            # 找到每个设备的最新状态
             latest = df.sort_values('created_at').groupby('device_id').last().reset_index()
+            # 过滤领用中且属于当前组的设备
             borrowed = latest[latest['action_type'] == '领用']
-            overdue_list = []
+            if owning_group != "默认":
+                borrowed = borrowed[borrowed['lab_group'] == owning_group]
+            
             now = datetime.now(pytz.timezone('Asia/Shanghai'))
+            overdue_found = False
+            
             for _, row in borrowed.iterrows():
                 start_time = pd.to_datetime(row['created_at']).astimezone(pytz.timezone('Asia/Shanghai'))
                 limit_days = float(row['loan_days']) if row['loan_days'] else 0
                 due_time = start_time + timedelta(days=limit_days)
+                
                 if now > due_time:
-                    if owning_group == "默认" or row['lab_group'] == owning_group:
-                        overdue_list.append(f"❌ {row['device_name']}({row['device_id']}) - {row['staff_id']}已超期")
-            if overdue_list:
-                st.error("🚨 **以下资产已超期：**")
-                for item in overdue_list:
-                    st.write(f"<span style='color:#ff4b4b; font-size:14px;'>{item}</span>", unsafe_allow_html=True)
+                    if not overdue_found:
+                        st.error("🚨 **【严重超期催还名单】**")
+                        overdue_found = True
+                    
+                    overdue_delta = now - due_time
+                    time_str = format_overdue_time(overdue_delta)
+                    
+                    # 极其详细的提醒内容
+                    st.warning(f"""
+                    📍 **资产：** {row['device_name']} ({row['device_id']})  
+                    👤 **负责人：** 工号 `{row['staff_id']}` ({row['staff_group']} 组)  
+                    ⏰ **已超期：** <span style='color:red; font-size:18px; font-weight:bold;'>{time_str}</span>
+                    """, unsafe_allow_html=True)
+            if overdue_found:
                 st.markdown("---")
     except: pass
 
-# --- 5. 页面参数 ---
+# --- 6. 页面入口 ---
 query_params = st.query_params
 owning_group = query_params.get("group", "默认")
 
-check_overdue(owning_group)
+# 顶部红牌催还
+check_overdue_and_display(owning_group)
 
 if img_base64:
     st.markdown(f'<div class="logo-box"><img src="data:image/jpeg;base64,{img_base64}" width="180"></div>', unsafe_allow_html=True)
 
-st.markdown(f"<h2 style='text-align: center; margin-top: 0px;'>{owning_group} 设备登记</h2>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='text-align: center; margin-top: 0px;'>{owning_group} 设备登记表</h2>", unsafe_allow_html=True)
 
-# --- 6. 登记表单 ---
+# --- 7. 登记表单 ---
 with st.form("lab_form", clear_on_submit=True):
     staff_id = st.text_input("👤 领用人工号 (Staff ID)", placeholder="请输入工号")
-    staff_group = st.selectbox("🏢 领用人所属组别", ["请选择组别"] + ALL_GROUPS)
+    staff_group = st.selectbox("🏢 领用人所属组别 (Your Group)", ["请选择组别"] + ALL_GROUPS)
     
     st.markdown("**⏳ 预计借用时长 (Loan Duration)**")
     col1, col2 = st.columns([2, 1])
@@ -112,7 +139,6 @@ with st.form("lab_form", clear_on_submit=True):
     with col1:
         if unit == "分钟":
             amount = st.number_input("数值", min_value=10, value=30, step=10)
-            # 存入天数（保持高精度）
             final_loan_days = amount / 1440.0
         else:
             amount = st.number_input("数值", min_value=0.1, value=1.0, step=0.5)
@@ -123,11 +149,11 @@ with st.form("lab_form", clear_on_submit=True):
     
     available_devices = GROUP_CONFIG.get(owning_group, GROUP_CONFIG["默认"])
     device_name = st.selectbox("📦 资产名称", ["请选择资产"] + available_devices)
-    device_id = st.text_input("🔢 资产编号 (SN)", placeholder="输入设备唯一编号")
+    device_id = st.text_input("🔢 资产编号 (SN)", placeholder="输入唯一编号")
     
     submit_btn = st.form_submit_button("确认提交登记 (SUBMIT)")
 
-# --- 7. 提交逻辑与动画修复 ---
+# --- 8. 提交逻辑 ---
 if submit_btn:
     if not staff_id or staff_group == "请选择组别" or device_name == "请选择资产" or not device_id:
         st.error("❌ 请完整填写所有必填项！")
@@ -143,19 +169,16 @@ if submit_btn:
                 "loan_days": final_loan_days if "领用" in action_type else 0
             }
             supabase.table("lab_records").insert(entry).execute()
-            
-            # --- 动画修复：先显示动画，延迟后再重刷页面 ---
             st.balloons()
-            st.success(f"✅ 登记成功！{device_name} 已记录。")
-            time.sleep(2) # 留2秒钟看动画
+            st.success(f"✅ 登记成功！{device_name} 已计入 {owning_group} 台账。")
+            time.sleep(2)
             st.rerun()
-            
         except Exception as e:
             st.error(f"提交失败: {e}")
 
-# --- 8. 管理员后台（修复9分钟显示逻辑） ---
+# --- 9. 管理员后台 ---
 st.markdown("<br>", unsafe_allow_html=True)
-with st.expander(f"📊 {owning_group} 组设备台账"):
+with st.expander(f"📊 {owning_group} 组专属台账"):
     try:
         res = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
         if res.data:
@@ -165,20 +188,15 @@ with st.expander(f"📊 {owning_group} 组设备台账"):
             if owning_group != "默认":
                 df = df[df['lab_group'] == owning_group]
             
-            # 格式化时长显示逻辑：使用四舍五入解决9分钟问题
             def format_duration(d):
                 if d == 0: return "-"
-                total_mins = d * 1440
-                rounded_mins = int(round(total_mins)) # 核心修复点：四舍五入
-                if rounded_mins < 60:
-                    return f"{rounded_mins}分钟"
-                else:
-                    return f"{round(d, 2)}天"
+                total_mins = int(round(d * 1440))
+                if total_mins < 60: return f"{total_mins}分钟"
+                return f"{round(d, 2)}天"
 
-            df['借用时长'] = df['loan_days'].apply(format_duration)
-            
-            df_display = df[['staff_id', 'staff_group', 'action_type', 'device_name', 'device_id', '借用时长', 'created_at']]
-            df_display.columns = ["工号", "人员组别", "类型", "设备", "编号", "时长", "登记时间"]
+            df['时长'] = df['loan_days'].apply(format_duration)
+            df_display = df[['staff_id', 'staff_group', 'action_type', 'device_name', 'device_id', '时长', 'created_at']]
+            df_display.columns = ["工号", "人员组别", "类型", "设备", "编号", "计划时长", "登记时间"]
             st.dataframe(df_display, use_container_width=True)
             
             output = io.BytesIO()
