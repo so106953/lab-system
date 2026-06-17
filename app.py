@@ -40,8 +40,11 @@ img_base64 = get_base64_image("IMG_4614.jpeg")
 
 style = f"""
     <style>
+    /* 彻底抹除标志 */
     header, footer, [data-testid="stHeader"], [data-testid="stToolbar"], [data-testid="stDecoration"] {{display: none !important;}}
     [data-testid="stStatusWidget"], [data-testid="manage-app-button"], .viewerBadge_container__1QSob {{display: none !important; position: fixed !important; left: -9999px !important;}}
+    
+    /* 自动配色 */
     :root {{ --bg-color: #FFFFFF; --text-color: #000000; --card-bg: #FFFFFF; }}
     @media (prefers-color-scheme: dark) {{
         :root {{ --bg-color: #0E1117; --text-color: #FFFFFF; --card-bg: #1A1C23; }}
@@ -49,85 +52,98 @@ style = f"""
     }}
     html, body, .stApp {{ background-color: var(--bg-color) !important; color: var(--text-color) !important; }}
     h1, h2, label, span, div {{ color: var(--text-color) !important; font-weight: 600 !important; }}
+
+    /* Logo 居中 */
     .logo-box {{ display: flex; justify-content: center; padding: 15px 0; }}
     .logo-box img {{ max-width: 180px; height: auto; }}
+
+    /* 水印 */
     .stApp::before {{
         content: ""; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
         background-image: url("data:image/jpeg;base64,{img_base64}");
         background-repeat: no-repeat; background-position: center;
         background-size: 50%; opacity: 0.02; z-index: -1;
     }}
-    div[data-testid="stForm"] {{ border-radius: 20px !important; background-color: var(--card-bg) !important; padding: 25px !important; box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important; border: 1px solid rgba(128,128,128,0.1) !important; }}
-    .stButton>button {{ width: 100%; border-radius: 12px !important; height: 3.8em !important; background-color: #28A745 !important; color: #FFFFFF !important; font-weight: bold !important; }}
+
+    /* 表单美化 */
+    div[data-testid="stForm"] {{ 
+        border-radius: 20px !important; background-color: var(--card-bg) !important; 
+        padding: 25px !important; box-shadow: 0 10px 40px rgba(0,0,0,0.1) !important; 
+        border: 1px solid rgba(128,128,128,0.1) !important; 
+    }}
+
+    /* 绿色提交按钮 */
+    .stButton>button {{ 
+        width: 100%; border-radius: 12px !important; height: 3.8em !important; 
+        background-color: #28A745 !important; color: #FFFFFF !important; font-weight: bold !important; 
+    }}
     </style>
 """
 st.markdown(style, unsafe_allow_html=True)
 
-# --- 4. 获取 URL 参数 ---
-query_params = st.query_params
-owning_group = query_params.get("group", "默认")
-
-# --- 5. 核心逻辑：自动检测超时提醒 ---
-def check_overdue():
+# --- 4. 核心逻辑：自动超时提醒 (放在最显眼的顶部) ---
+def check_overdue_and_alert(owning_group):
     try:
         res = supabase.table("lab_records").select("*").execute()
         if res.data:
             df = pd.DataFrame(res.data)
-            # 找出每个设备最后一次动作
-            df_latest = df.sort_values('created_at').groupby('device_id').last().reset_index()
-            # 筛选出当前状态为“领用”的设备
-            out_devices = df_latest[df_latest['action_type'] == '领用']
+            # 找到每个设备的最后一条状态
+            latest_status = df.sort_values('created_at').groupby('device_id').last().reset_index()
+            # 筛选出当前是“领用”状态的
+            borrowed = latest_status[latest_status['action_type'] == '领用']
             
-            overdue_list = []
+            overdue_items = []
             now = datetime.now().astimezone()
             
-            for _, row in out_devices.iterrows():
+            for _, row in borrowed.iterrows():
                 start_time = pd.to_datetime(row['created_at'])
-                duration = row['loan_days'] if row['loan_days'] else 0
-                due_time = start_time + timedelta(days=float(duration))
+                limit_days = float(row['loan_days']) if row['loan_days'] else 0
+                due_date = start_time + timedelta(days=limit_days)
                 
-                if now > due_time:
-                    overdue_list.append(f"{row['device_name']}({row['device_id']}) - 借用人:{row['staff_id']}")
+                if now > due_date:
+                    # 如果当前是小组页面，只提醒本组设备；如果是总页面，提醒全部
+                    if owning_group == "默认" or row['lab_group'] == owning_group:
+                        overdue_items.append(f"⚠️ {row['device_name']}({row['device_id']}) - 借用人:{row['staff_id']} (已超期)")
             
-            if overdue_list:
-                st.error(f"🚨 **超时未归还提醒：** \n\n " + " | ".join(overdue_list))
-    except: pass
+            if overdue_items:
+                for item in overdue_items:
+                    st.error(item) # 使用红牌警告显示
+    except Exception as e: pass
 
-# 执行提醒
-check_overdue()
+# --- 5. 获取 URL 参数 ---
+query_params = st.query_params
+owning_group = query_params.get("group", "默认")
 
-# 页面 Logo
+# 顶部先显示提醒
+check_overdue_and_alert(owning_group)
+
+# 顶部 Logo
 if img_base64:
     st.markdown(f'<div class="logo-box"><img src="data:image/jpeg;base64,{img_base64}"></div>', unsafe_allow_html=True)
 
-st.markdown(f"<h2 style='text-align: center; margin-top: 0px;'>{owning_group} 设备登记</h2>", unsafe_allow_html=True)
+st.markdown(f"<h2 style='text-align: center; margin-top: 0px;'>{owning_group} 设备领用登记</h2>", unsafe_allow_html=True)
 
 # --- 6. 登记表单 ---
 with st.form("lab_form", clear_on_submit=True):
     staff_id = st.text_input("👤 领用人工号 (Staff ID)", placeholder="请输入工号")
     staff_group = st.selectbox("🏢 领用人所属组别", ["请选择组别"] + ALL_GROUPS)
     
-    # 新增：借用时长选择
-    duration_opt = ["0.5天", "1天", "2天", "3天", "5天", "7天", "自定义"]
-    loan_duration_raw = st.selectbox("⏳ 预计借用时长 (Loan Duration)", duration_opt)
-    
-    if loan_duration_raw == "自定义":
-        loan_days = st.number_input("请输入具体天数", min_value=0.5, step=0.5)
-    else:
-        loan_days = float(loan_duration_raw.replace("天", ""))
+    # 优化后的时长输入：直接输入任意天数，默认1天
+    loan_days = st.number_input("⏳ 预计借用时长 (天/Days) - 最少0.5", min_value=0.5, value=1.0, step=0.5)
 
     st.markdown("---")
     action_type = st.radio("📝 操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
     
     available_devices = GROUP_CONFIG.get(owning_group, GROUP_CONFIG["默认"])
-    device_name = st.selectbox("📦 资产名称", ["请选择资产"] + available_devices)
-    device_id = st.text_input("🔢 资产编号 (SN)", placeholder="请输入设备编号")
+    device_name = st.selectbox("📦 设备名称", ["请选择资产"] + available_devices)
+    device_id = st.text_input("🔢 设备编号 (SN)", placeholder="请输入唯一设备号")
     
     submit_btn = st.form_submit_button("确认提交登记 (SUBMIT)")
 
+# --- 提交处理 ---
 if submit_btn:
     if not staff_id or staff_group == "请选择组别" or device_name == "请选择资产" or not device_id:
-        st.error("❌ 请完整填写所有信息")
+        st.error("❌ 请完整填写所有必填项")
     else:
         try:
             entry = {
@@ -137,18 +153,18 @@ if submit_btn:
                 "action_type": "领用" if "领用" in action_type else "归还",
                 "device_name": device_name,
                 "device_id": device_id,
-                "loan_days": loan_days if "领用" in action_type else 0 # 归还时时长计为0
+                "loan_days": loan_days if "领用" in action_type else 0
             }
             supabase.table("lab_records").insert(entry).execute()
-            st.success(f"✅ 登记成功！")
+            st.success("✅ 登记成功！数据已实时备份。")
             st.balloons()
             st.rerun()
         except Exception as e:
-            st.error(f"提交出错: {e}")
+            st.error(f"提交失败: {e}")
 
 # --- 7. 管理员后台 ---
 st.markdown("<br>", unsafe_allow_html=True)
-with st.expander(f"📊 {owning_group} 组设备台账"):
+with st.expander(f"📊 {owning_group} 组设备台账 (查看/导出)"):
     try:
         res = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
         if res.data:
@@ -159,12 +175,13 @@ with st.expander(f"📊 {owning_group} 组设备台账"):
                 df = df[df['lab_group'] == owning_group]
             
             df_display = df[['staff_id', 'staff_group', 'action_type', 'device_name', 'device_id', 'loan_days', 'created_at']]
-            df_display.columns = ["工号", "人员组别", "类型", "资产名称", "资产编号", "借用天数", "登记时间"]
+            df_display.columns = ["工号", "人员组别", "类型", "设备", "编号", "借用天数", "登记时间"]
             st.dataframe(df_display, use_container_width=True)
             
+            # 导出 Excel
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
                 df_display.to_excel(writer, index=False, sheet_name='Records')
-            st.download_button("📥 导出 Excel", output.getvalue(), f"UL_{owning_group}_Records.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+            st.download_button("📥 导出 Excel (.xlsx)", output.getvalue(), f"UL_{owning_group}_Records.xlsx")
     except:
         st.write("暂无记录。")
