@@ -9,7 +9,7 @@ URL = "https://xcrbvvlsbjsmxaepkdbl.supabase.co"
 KEY = "sb_publishable_QYXt0Fs5YKpCBXxCjdb4sg_9y7rkksj"
 supabase: Client = create_client(URL, KEY)
 
-# --- 2. 详细的分组设备清单 (你可以随时在 [] 里增加各组特定的设备) ---
+# --- 2. 各组设备详细清单 (可在此自由调整各组设备) ---
 GROUP_CONFIG = {
     "components": ["示波器", "万用表", "直流电源", "LCR表"],
     "PV": ["光伏测试仪", "万用表", "直流电源", "电子负载"],
@@ -24,12 +24,8 @@ GROUP_CONFIG = {
     "默认": ["直流电源", "万用表", "电流钳", "示波器", "电子负载", "游标卡尺", "烤箱", "环境箱", "Datalogger", "电压探头", "高压探棒"]
 }
 
-# --- 3. 获取网址里的组别参数 ---
-query_params = st.query_params
-target_group = query_params.get("group", "默认")
-
-# --- 4. 极致视觉定制 ---
-st.set_page_config(page_title=f"{target_group}登记表", layout="centered")
+# --- 3. 极致视觉定制 ---
+st.set_page_config(page_title="UL设备登记", layout="centered")
 
 def get_base64_image(file_path):
     try:
@@ -66,11 +62,12 @@ style = f"""
     .logo-box {{ display: flex; justify-content: center; padding: 20px 0; }}
     .logo-box img {{ max-width: 180px; height: auto; }}
 
-    /* 水印 */
+    /* 水印背景 */
     .stApp::before {{
         content: ""; position: fixed; top: 0; left: 0; bottom: 0; right: 0;
         background-image: url("data:image/jpeg;base64,{img_base64}");
-        background-repeat: no-repeat; background-position: center; background-size: 50%; opacity: 0.02; z-index: -1;
+        background-repeat: no-repeat; background-position: center;
+        background-size: 50%; opacity: 0.02; z-index: -1;
     }}
 
     /* 表单全屏适配 */
@@ -78,10 +75,14 @@ style = f"""
         border: none !important; background-color: var(--card-bg) !important; padding: 20px !important;
     }}
     @media (min-width: 768px) {{
-        div[data-testid="stForm"] {{ max-width: 500px !important; margin: 20px auto !important; border-radius: 24px !important; border: 1px solid rgba(128,128,128,0.1) !important; box-shadow: 0 15px 50px rgba(0,0,0,0.1) !important; }}
+        div[data-testid="stForm"] {{ 
+            max-width: 500px !important; margin: 20px auto !important; 
+            border-radius: 24px !important; border: 1px solid rgba(128,128,128,0.1) !important; 
+            box-shadow: 0 15px 50px rgba(0,0,0,0.1) !important; 
+        }}
     }}
 
-    /* 绿色按钮 */
+    /* 确认按钮颜色 (绿色) */
     .stButton>button {{
         width: 100%; border-radius: 12px !important; height: 3.8em !important;
         background-color: #28A745 !important; color: #FFFFFF !important; font-weight: bold !important; border: none !important;
@@ -91,24 +92,42 @@ style = f"""
 """
 st.markdown(style, unsafe_allow_html=True)
 
-# --- 5. 页面内容 ---
+# --- 4. 获取 URL 组别参数 ---
+query_params = st.query_params
+url_group = query_params.get("group", "components") # 默认初始定位在components
+
+# --- 5. 页面内容渲染 ---
 if img_base64:
     st.markdown(f'<div class="logo-box"><img src="data:image/jpeg;base64,{img_base64}"></div>', unsafe_allow_html=True)
 
-st.markdown(f"<h2 style='text-align: center; margin-top: 0px;'>{target_group} 设备领用登记</h2>", unsafe_allow_html=True)
-st.markdown(f"<p style='text-align: center; opacity: 0.6; font-size: 13px;'>UL Solutions Asset Registry System</p>", unsafe_allow_html=True)
+st.markdown("<h2 style='text-align: center; margin-top: 0px;'>设备领用登记表</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center; opacity: 0.6; font-size: 13px;'>UL Solutions Asset Registry System</p>", unsafe_allow_html=True)
 
+# --- 登记表单 ---
 with st.form("lab_form", clear_on_submit=True):
-    staff_id = st.text_input("工号 (Staff ID)", placeholder="请输入您的工号")
-    action_type = st.radio("操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
+    # 1. 领用工号
+    staff_id = st.text_input("👤 领用工号 (Staff ID)", placeholder="请输入您的工号")
     
-    # 核心：根据参数识别显示对应组别的设备
-    group_devices = GROUP_CONFIG.get(target_group, GROUP_CONFIG["默认"])
-    device_name = st.selectbox("设备名称", ["请选择设备类型"] + group_devices)
+    # 2. 部门/组别选择 (下拉方式)
+    group_list = list(GROUP_CONFIG.keys())
+    # 如果 URL 里有组别，下拉框默认选中它
+    default_index = group_list.index(url_group) if url_group in group_list else 0
+    selected_group = st.selectbox("🏢 所属组别/部门", group_list, index=default_index)
     
-    device_id = st.text_input("设备编号 (SN)", placeholder="请输入设备唯一编号")
+    # 3. 操作类型
+    action_type = st.radio("📝 操作类型", ["领用 (Check-out)", "归还 (Return)"], horizontal=True)
+    
+    # 4. 设备名称 (联动：根据选中的组别显示对应设备)
+    devices = GROUP_CONFIG.get(selected_group, GROUP_CONFIG["默认"])
+    device_name = st.selectbox("📦 设备名称", ["请选择设备类型"] + devices)
+    
+    # 5. 设备编号
+    device_id = st.text_input("🔢 设备编号 (SN)", placeholder="请输入唯一设备编号")
+    
+    st.markdown("<br>", unsafe_allow_html=True)
     submit_btn = st.form_submit_button("确认提交登记 (SUBMIT)")
 
+# --- 提交逻辑 ---
 if submit_btn:
     if not staff_id or device_name == "请选择设备类型" or not device_id:
         st.error("❌ 请完整填写所有信息后再提交")
@@ -119,16 +138,16 @@ if submit_btn:
                 "action_type": "领用" if "领用" in action_type else "归还",
                 "device_name": device_name,
                 "device_id": device_id,
-                "lab_group": target_group
+                "lab_group": selected_group
             }
             supabase.table("lab_records").insert(entry).execute()
-            st.success(f"✅ {target_group} 登记成功！")
+            st.success(f"✅ 登记成功！所属组别：{selected_group}")
             st.balloons()
         except Exception as e:
             st.error(f"提交出错: {e}")
 
-# --- 6. 管理员后台（按组筛选） ---
-st.markdown("<br>", unsafe_allow_html=True)
+# --- 6. 管理员后台（支持按组筛选导出 Excel） ---
+st.markdown("<br><br>", unsafe_allow_html=True)
 with st.expander("📊 查看记录 (管理人员专用)"):
     try:
         res = supabase.table("lab_records").select("*").order("created_at", desc=True).execute()
@@ -136,19 +155,24 @@ with st.expander("📊 查看记录 (管理人员专用)"):
             df = pd.DataFrame(res.data)
             df['created_at'] = pd.to_datetime(df['created_at']).dt.tz_convert('Asia/Shanghai').dt.strftime('%Y-%m-%d %H:%M:%S')
             
-            # 后台按组别筛选
-            view_group = st.selectbox("筛选查看组别", ["全部"] + list(GROUP_CONFIG.keys()))
-            if view_group != "全部":
-                df = df[df['lab_group'] == view_group]
+            # 后台筛选功能
+            filter_group = st.selectbox("筛选查看部门", ["全部记录"] + group_list)
+            if filter_group != "全部记录":
+                df = df[df['lab_group'] == filter_group]
                 
-            df_display = df[['staff_id', 'action_type', 'device_name', 'device_id', 'lab_group', 'created_at']]
-            df_display.columns = ["工号", "类型", "设备", "编号", "所属组", "时间"]
+            df_display = df[['staff_id', 'lab_group', 'action_type', 'device_name', 'device_id', 'created_at']]
+            df_display.columns = ["工号", "部门/组别", "操作类型", "设备名称", "设备编号", "登记时间"]
             st.dataframe(df_display, use_container_width=True)
             
-            # 导出 Excel
+            # 导出标准 Excel (.xlsx)
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='openpyxl') as writer:
-                df_display.to_excel(writer, index=False, sheet_name='Records')
-            st.download_button(f"📥 导出 {view_group} Excel (.xlsx)", output.getvalue(), f"UL_{view_group}_Records.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                df_display.to_excel(writer, index=False, sheet_name='登记明细')
+            st.download_button(
+                label=f"📥 导出 {filter_group} Excel 文档",
+                data=output.getvalue(),
+                file_name=f"UL_Device_Records_{selected_group}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
     except:
-        st.write("暂无记录。")
+        st.write("目前尚无记录。")
